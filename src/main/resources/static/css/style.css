@@ -1,0 +1,166 @@
+html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+#map { height: 100vh; width: 100%; }
+
+/* --- Butoane Actiune (Stanga) --- */
+.action-btn {
+    position: absolute;
+    left: 20px;
+    z-index: 1000;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 50px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: transform 0.2s, background-color 0.3s;
+}
+.action-btn:active { transform: scale(0.95); }
+
+#addLocationBtn {
+    top: 80px;
+    background-color: #28a745;
+}
+#addLocationBtn:hover { background-color: #218838; }
+#addLocationBtn.active { background-color: #1e7e34; border: 2px solid white; }
+
+#toggleRoutingBtn {
+    top: 140px;
+    background-color: #6c757d;
+    font-size: 20px;
+}
+#toggleRoutingBtn.active { background-color: #007bff; }
+
+
+/* --- Bara de Cautare Simpla --- */
+#searchBox {
+    position: absolute;
+    top: 20px;
+    left: 90px;
+    z-index: 1000;
+    width: 300px;
+    padding: 12px 15px;
+    font-size: 16px;
+    border-radius: 25px;
+    border: 1px solid #ddd;
+    background: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    outline: none;
+    display: block;
+}
+
+.leaflet-routing-container { display: none !important; }
+
+/* --- PANOU CREATOR (UNIFICAT) --- */
+#creatorPanel {
+    position: absolute;
+    top: 20px;
+    left: 90px;
+    z-index: 1000;
+    width: 350px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    padding: 20px;
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+#creatorPanel h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Selector Principal (Tab-uri) */
+.creator-tabs {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 10px;
+}
+.creator-tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    background: #f8f9fa;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-weight: bold;
+    color: #666;
+}
+.creator-tab.active {
+    border-bottom: 3px solid #007bff;
+    color: #007bff;
+    background: white;
+}
+
+/* Continut Tab-uri */
+.tab-content {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+}
+.tab-content.active {
+    display: flex;
+}
+
+/* Input-uri */
+.builder-input, .type-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.builder-input-group {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.remove-stop-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    width: 30px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.panel-btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+#pickOnMapBtn { background-color: #28a745; color: white; }
+#pickOnMapBtn:hover { background-color: #218838; }
+
+#addStopBtn { background-color: #17a2b8; color: white; font-size: 12px; padding: 5px; }
+
+#saveBuiltRoadBtn { background-color: #007bff; color: white; margin-top: 10px; }
+#saveBuiltRoadBtn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+
+/* --- Login --- */
+#loginBtn { position: absolute; top: 20px; right: 20px; z-index: 1000; background-color: #007bff; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; }
+.modal-content { background: white; border-radius: 8px; width: 300px; margin: 15% auto; padding: 25px; text-align: center; }
+.modal-content input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+.modal-btn { margin-top: 10px; padding: 10px 20px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }

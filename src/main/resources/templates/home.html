@@ -4,184 +4,78 @@
     <meta charset="UTF-8">
     <title>Romania Map with Search</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-    <style>
-        html, body { height: 100%; margin:0; padding:0; }
-        #map { height: 100vh; width: 100%; }
-
-        #searchBox {
-            position: absolute;
-            top: 10px;
-            left: 60px;
-            z-index: 1000;
-            width: 250px;
-            padding: 6px 10px;
-            font-size: 14px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            background: white;
-        }
-
-        /* round login button */
-        #loginBtn {
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            z-index: 1000;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        /* modal background */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.4);
-            z-index: 2000;
-        }
-
-        /* modal content */
-        .modal-content {
-            background: white;
-            border-radius: 8px;
-            width: 300px;
-            margin: 10% auto;
-            padding: 20px;
-            text-align: center;
-        }
-
-        input {
-            width: 90%;
-            padding: 8px;
-            margin: 5px 0;
-        }
-
-        button {
-            margin-top: 10px;
-            padding: 8px 14px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-<input type="text" id="searchBox" placeholder="Cauta locatie...">
-<button id="loginBtn">👤</button>
 
-<!-- Modal -->
+<!-- Butoane Stanga -->
+<button id="addLocationBtn" class="action-btn" title="Deschide Creator">+</button>
+<button id="toggleRoutingBtn" class="action-btn" title="Activeaza/Dezactiveaza Rutarea">🛣️</button>
+
+<!-- Bara Cautare -->
+<input type="text" id="searchBox" placeholder="Cauta locatie...">
+
+<!-- PANOU CREATOR -->
+<div id="creatorPanel">
+    <h3>Creator</h3>
+
+    <!-- Tab-uri -->
+    <div class="creator-tabs">
+        <div class="creator-tab active" data-tab="location">📍 Punct</div>
+        <div class="creator-tab" data-tab="road">🛣️ Drum</div>
+    </div>
+
+    <!-- TAB 1: LOCATIE -->
+    <div id="tab-location" class="tab-content active">
+        <label style="font-size:14px; font-weight:bold;">Tip Locatie:</label>
+        <select id="locTypeSelect" class="type-select">
+            <option value="default">📍 Standard</option>
+            <option value="cafe">☕ Cafenea</option>
+            <option value="shop">🛒 Magazin</option>
+            <option value="police">🚓 Politie</option>
+            <option value="blocked">⛔ Drum Blocat</option>
+            <option value="gas">⛽ Benzinarie</option>
+        </select>
+
+        <input type="text" id="newLocName" class="builder-input" placeholder="Nume Locatie...">
+        <button id="pickOnMapBtn" class="panel-btn">Alege pe Harta</button>
+        <p id="locStatus" style="font-size:12px; color:#666; margin:5px 0; display:none;">Click pe harta pentru a salva...</p>
+    </div>
+
+    <!-- TAB 2: DRUM -->
+    <div id="tab-road" class="tab-content">
+        <div id="stopsContainer">
+            <!-- Input-uri generate dinamic -->
+        </div>
+        <button id="addStopBtn" class="panel-btn">+ Adauga Punct</button>
+
+        <hr style="margin:10px 0; border:0; border-top:1px solid #ddd;">
+
+        <input type="text" id="roadNameInput" class="builder-input" placeholder="Nume Drum...">
+        <button id="saveBuiltRoadBtn" class="panel-btn">Calculeaza si Salveaza</button>
+    </div>
+</div>
+
+<!-- Login -->
+<button id="loginBtn">👤</button>
 <div id="loginModal" class="modal">
     <div class="modal-content">
         <h3>Login / Sign up</h3>
         <input type="text" id="username" placeholder="Username"><br>
         <input type="password" id="password" placeholder="Password"><br>
-        <button id="loginAction">Login</button>
-        <button id="signupAction">Sign up</button>
+        <button id="loginAction" class="modal-btn">Login</button>
+        <button id="signupAction" class="modal-btn">Sign up</button>
     </div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-    // map setup
-    var map = L.map('map').setView([45.9432, 24.9668], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script src="/js/script.js"></script>
 
-    var allPoints = L.layerGroup().addTo(map);
-
-    function createMarker(lat, lon, name) {
-        L.marker([lat, lon], { title: name }).addTo(allPoints);
-    }
-
-    function loadPoints(query) {
-        return fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            body: `[out:json][timeout:25]; area["name"="Romania"]->.ro; ${query} out center;`
-        })
-            .then(r => r.json())
-            .then(data => {
-                data.elements.forEach(el => {
-                    if(el.lat && el.lon && el.tags && el.tags.name){
-                        createMarker(el.lat, el.lon, el.tags.name);
-                    }
-                });
-            });
-    }
-
-    Promise.all([
-        loadPoints(`node["place"="city"](area.ro); node["place"="town"](area.ro); node["place"="village"](area.ro);`),
-        loadPoints(`node["amenity"="restaurant"](area.ro);`),
-        loadPoints(`node["amenity"="cafe"](area.ro);`),
-        loadPoints(`node["amenity"="bar"](area.ro);`)
-    ]);
-
-    const searchBox = document.getElementById('searchBox');
-    searchBox.addEventListener('keypress', function(e) {
-        if(e.key === 'Enter') {
-            const query = searchBox.value;
-            if(!query) return;
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Romania')}`)
-                .then(response => response.json())
-                .then(data => {
-                    if(data && data.length > 0) {
-                        const lat = parseFloat(data[0].lat);
-                        const lon = parseFloat(data[0].lon);
-                        map.setView([lat, lon], 14);
-                    } else {
-                        alert("Locatie negasita!");
-                    }
-                });
-        }
-    });
-
-    // Modal logic
-    const loginBtn = document.getElementById('loginBtn');
-    const loginModal = document.getElementById('loginModal');
-    const loginAction = document.getElementById('loginAction');
-    const signupAction = document.getElementById('signupAction');
-
-    loginBtn.addEventListener('click', () => {
-        loginModal.style.display = 'block';
-    });
-
-    window.onclick = function(event) {
-        if (event.target === loginModal) {
-            loginModal.style.display = 'none';
-        }
-    };
-
-    // send to backend
-    function sendData(endpoint) {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        fetch(endpoint, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ username, password })
-        }).then(r => {
-            if (r.ok) {
-                alert('Success!');
-                loginModal.style.display = 'none';
-            } else {
-                alert('Error!');
-            }
-        });
-    }
-
-    loginAction.addEventListener('click', () => sendData('/login'));
-    signupAction.addEventListener('click', () => sendData('/signup'));
-</script>
 </body>
 </html>
