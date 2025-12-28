@@ -16,6 +16,32 @@ var userLocation = null;
 var userLocationMarker = null; 
 var isRoutingEnabled = false; 
 
+// --- MOTIVE RAPORTARE ---
+const REPORT_REASONS = {
+    'road': [
+        "Alerta Falsa", "Drum Deschis", "Informatie Gresita", "Duplicat", 
+        "Nu mai este valabil", "Traseu Gresit", "Nume Ofensator", "Altul"
+    ],
+    'cafe': [
+        "Inchis Permanent", "Nu exista", "Nume Gresit", "Locatie Gresita", "Altul"
+    ],
+    'shop': [
+        "Inchis Permanent", "Nu exista", "Nume Gresit", "Locatie Gresita", "Altul"
+    ],
+    'police': [
+        "Nu mai sunt acolo", "Alerta Falsa", "Locatie Gresita", "Altul"
+    ],
+    'blocked': [
+        "Drumul s-a deblocat", "Alerta Falsa", "Locatie Gresita", "Altul"
+    ],
+    'gas': [
+        "Inchis Permanent", "Nu exista", "Preturi Gresite", "Altul"
+    ],
+    'default': [
+        "Nu exista", "Informatie Gresita", "Duplicat", "Altul"
+    ]
+};
+
 // --- Functii Utilitare ---
 
 function getIconForType(type) {
@@ -38,22 +64,45 @@ function getIconForType(type) {
     });
 }
 
-function createMarker(lat, lon, name, type) {
+function createMarker(lat, lon, name, type, id) {
     const icon = getIconForType(type);
-    L.marker([lat, lon], { title: name, icon: icon }).addTo(allPoints)
-     .bindPopup(`<b>${name}</b><br>Tip: ${type || 'Standard'}`);
+    const marker = L.marker([lat, lon], { title: name, icon: icon }).addTo(allPoints);
+    
+    // Popup cu buton de raportare
+    const popupContent = document.createElement('div');
+    popupContent.innerHTML = `<b>${name}</b><br>Tip: ${type || 'Standard'}<br>`;
+    
+    const reportBtn = document.createElement('button');
+    reportBtn.innerText = "⚠️ Raporteaza";
+    reportBtn.style.marginTop = "5px";
+    reportBtn.style.backgroundColor = "#dc3545";
+    reportBtn.style.color = "white";
+    reportBtn.style.border = "none";
+    reportBtn.style.borderRadius = "3px";
+    reportBtn.style.cursor = "pointer";
+    
+    reportBtn.onclick = function() {
+        showReportModal(id, name, 'location', type || 'default', marker);
+        map.closePopup();
+    };
+    
+    popupContent.appendChild(reportBtn);
+    marker.bindPopup(popupContent);
 }
 
-function createRoad(coordinates, name) {
+function createRoad(coordinates, name, id) {
     var polyline = L.polyline(coordinates, {color: 'red', weight: 4}).addTo(allRoads);
-    polyline.bindPopup("Drum: " + name);
+    polyline.bindTooltip("Drum: " + name);
+    polyline.on('click', function(e) {
+        showReportModal(id, name, 'road', 'road', polyline);
+    });
 }
 
 function loadSavedLocations() {
     fetch('/locations')
         .then(response => response.json())
         .then(locations => {
-            locations.forEach(loc => createMarker(loc.lat, loc.lng, loc.name, loc.type));
+            locations.forEach(loc => createMarker(loc.lat, loc.lng, loc.name, loc.type, loc.id));
         })
         .catch(err => console.error("Eroare incarcare locatii:", err));
 }
@@ -65,7 +114,7 @@ function loadSavedRoads() {
             roads.forEach(road => {
                 try {
                     var coords = JSON.parse(road.coordinatesJson);
-                    createRoad(coords, road.name);
+                    createRoad(coords, road.name, road.id);
                 } catch (e) {
                     console.error("Eroare parsare drum:", e);
                 }
@@ -88,7 +137,11 @@ function loadPoints(query) {
             if (data.elements) {
                 data.elements.forEach(el => {
                     if(el.lat && el.lon && el.tags && el.tags.name){
-                        createMarker(el.lat, el.lon, el.tags.name, 'default');
+                        // Punctele OSM nu au ID in baza noastra, deci nu le putem sterge usor
+                        // Le afisam doar ca markere simple fara buton de raportare (sau cu unul dezactivat)
+                        const icon = getIconForType('default');
+                        L.marker([el.lat, el.lon], { title: el.tags.name, icon: icon }).addTo(allPoints)
+                         .bindPopup(`<b>${el.tags.name}</b><br>Sursa: OpenStreetMap`);
                     }
                 });
             }
@@ -107,6 +160,77 @@ Promise.all([
 
 loadSavedLocations();
 loadSavedRoads();
+
+
+// --- GESTIONARE RAPORTARE (GENERIC) ---
+const reportModal = document.getElementById('reportModal');
+const reportTitle = document.getElementById('reportTitle');
+const reportItemName = document.getElementById('reportItemName');
+const reportReasonSelect = document.getElementById('reportReason');
+const confirmReportBtn = document.getElementById('confirmReportBtn');
+const cancelReportBtn = document.getElementById('cancelReportBtn');
+
+let currentReportId = null;
+let currentReportCategory = null; // 'road' sau 'location'
+let currentReportLayer = null;
+
+function showReportModal(id, name, category, type, layer) {
+    currentReportId = id;
+    currentReportCategory = category;
+    currentReportLayer = layer;
+    
+    reportTitle.innerText = category === 'road' ? "⚠️ Raporteaza Drum" : "⚠️ Raporteaza Locatie";
+    reportItemName.innerText = (category === 'road' ? "Drum: " : "Locatie: ") + name;
+    
+    // Populam motivele
+    reportReasonSelect.innerHTML = "";
+    const reasons = REPORT_REASONS[type] || REPORT_REASONS['default'];
+    reasons.forEach(reason => {
+        const option = document.createElement('option');
+        option.value = reason;
+        option.innerText = reason;
+        reportReasonSelect.appendChild(option);
+    });
+
+    reportModal.style.display = "block";
+}
+
+function hideReportModal() {
+    reportModal.style.display = "none";
+    currentReportId = null;
+    currentReportCategory = null;
+    currentReportLayer = null;
+}
+
+cancelReportBtn.addEventListener('click', hideReportModal);
+
+confirmReportBtn.addEventListener('click', () => {
+    if (currentReportId) {
+        const endpoint = currentReportCategory === 'road' ? '/roads/' : '/locations/';
+        
+        fetch(endpoint + currentReportId, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                if (currentReportLayer) {
+                    if (currentReportCategory === 'road') {
+                        allRoads.removeLayer(currentReportLayer);
+                    } else {
+                        allPoints.removeLayer(currentReportLayer);
+                    }
+                }
+                hideReportModal();
+            } else {
+                alert("Eroare la stergere.");
+            }
+        })
+        .catch(err => {
+            console.error("Eroare stergere:", err);
+            alert("Eroare de retea.");
+        });
+    }
+});
 
 
 // --- GESTIONARE LOCATIE SI RUTARE ---
@@ -237,8 +361,7 @@ map.on('click', function(e) {
         })
         .then(r => r.json())
         .then(saved => {
-            createMarker(saved.lat, saved.lng, saved.name, saved.type);
-            // Alerta eliminata
+            createMarker(saved.lat, saved.lng, saved.name, saved.type, saved.id);
             
             pickingLocationMode = false;
             map.getContainer().style.cursor = '';
@@ -362,8 +485,7 @@ saveBuiltRoadBtn.addEventListener('click', async () => {
             
             const saved = await saveResponse.json();
             
-            createRoad(leafletCoords, saved.name);
-            // Alerta eliminata
+            createRoad(leafletCoords, saved.name, saved.id);
             
             saveBuiltRoadBtn.innerText = "Calculeaza si Salveaza";
             saveBuiltRoadBtn.disabled = false;

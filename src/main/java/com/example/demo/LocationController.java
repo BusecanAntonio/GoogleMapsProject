@@ -19,7 +19,11 @@ public class LocationController {
 
     @PostMapping
     public Location addLocation(@RequestBody Location location) {
-        System.out.println("Saving location to MySQL: " + location.getName() + " [" + location.getLat() + ", " + location.getLng() + "]");
         return repository.save(location);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteLocation(@PathVariable Long id) {
+        repository.deleteById(id);
     }
 }

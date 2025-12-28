@@ -21,13 +21,11 @@
 <div id="creatorPanel">
     <h3>Creator</h3>
 
-    <!-- Tab-uri -->
     <div class="creator-tabs">
         <div class="creator-tab active" data-tab="location">📍 Punct</div>
         <div class="creator-tab" data-tab="road">🛣️ Drum</div>
     </div>
 
-    <!-- TAB 1: LOCATIE -->
     <div id="tab-location" class="tab-content active">
         <label style="font-size:14px; font-weight:bold;">Tip Locatie:</label>
         <select id="locTypeSelect" class="type-select">
@@ -44,17 +42,38 @@
         <p id="locStatus" style="font-size:12px; color:#666; margin:5px 0; display:none;">Click pe harta pentru a salva...</p>
     </div>
 
-    <!-- TAB 2: DRUM -->
     <div id="tab-road" class="tab-content">
-        <div id="stopsContainer">
-            <!-- Input-uri generate dinamic -->
-        </div>
+        <div id="stopsContainer"></div>
         <button id="addStopBtn" class="panel-btn">+ Adauga Punct</button>
-
         <hr style="margin:10px 0; border:0; border-top:1px solid #ddd;">
-
         <input type="text" id="roadNameInput" class="builder-input" placeholder="Nume Drum...">
         <button id="saveBuiltRoadBtn" class="panel-btn">Calculeaza si Salveaza</button>
+    </div>
+</div>
+
+<!-- FORMULAR TRANSPARENT (LOCATIE) -->
+<div id="customForm" class="glass-modal">
+    <h3 id="formTitle">Adauga Locatie</h3>
+    <input type="text" id="formNameInput" placeholder="Introdu numele aici...">
+    <div class="form-buttons">
+        <button id="saveFormBtn" class="form-btn">Salveaza</button>
+        <button id="cancelFormBtn" class="form-btn">Anuleaza</button>
+    </div>
+</div>
+
+<!-- MODAL RAPORTARE (GENERIC) -->
+<div id="reportModal" class="glass-modal" style="display:none;">
+    <h3 id="reportTitle" style="color:#dc3545;">⚠️ Raporteaza</h3>
+    <p id="reportItemName" style="font-weight:bold; margin-bottom:15px; color:#333;"></p>
+
+    <label style="display:block; text-align:left; margin-bottom:5px; font-size:14px;">Motivul raportarii:</label>
+    <select id="reportReason" class="type-select" style="margin-bottom:20px;">
+        <!-- Optiunile vor fi populate din JS -->
+    </select>
+
+    <div class="form-buttons">
+        <button id="confirmReportBtn" class="form-btn" style="background-color:#dc3545; color:white;">Sterge</button>
+        <button id="cancelReportBtn" class="form-btn" style="background-color:#6c757d; color:white;">Anuleaza</button>
     </div>
 </div>
 

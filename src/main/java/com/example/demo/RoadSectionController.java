@@ -21,4 +21,10 @@ public class RoadSectionController {
     public RoadSection addRoad(@RequestBody RoadSection road) {
         return repository.save(road);
     }
+
+    // Endpoint pentru stergere (Raportare)
+    @DeleteMapping("/{id}")
+    public void deleteRoad(@PathVariable Long id) {
+        repository.deleteById(id);
+    }
 }
