@@ -17,6 +17,12 @@
 <!-- Bara Cautare -->
 <input type="text" id="searchBox" placeholder="Cauta locatie...">
 
+<!-- SELECTOR VITEZA GLOBAL -->
+<div id="globalSpeedSelector">
+    <div class="speed-option active-legal" id="globalSpeedLegal">😇 Legal</div>
+    <div class="speed-option" id="globalSpeedIllegal">😈 +30 km/h</div>
+</div>
+
 <!-- PANOU CREATOR -->
 <div id="creatorPanel">
     <h3>Creator</h3>
@@ -68,6 +74,7 @@
             <option value="default">🛣️ Standard</option>
             <option value="blocked">⛔ Blocat</option>
             <option value="work">🚧 In Lucru</option>
+            <option value="accident">💥 Accident</option>
         </select>
 
         <div id="stopsContainer"></div>
@@ -80,7 +87,7 @@
     </div>
 </div>
 
-<!-- PANOU DETALII (GOOGLE MAPS STYLE) -->
+<!-- PANOU DETALII -->
 <div id="detailsPanel">
     <div class="details-header">
         <h2 id="detailTitle">Nume Drum</h2>
@@ -92,9 +99,14 @@
             <div class="detail-icon">ℹ️</div>
             <div class="detail-text" id="detailType">Tip: Standard</div>
         </div>
+
         <div class="detail-row">
             <div class="detail-icon">📏</div>
             <div class="detail-text" id="detailDistance">Calculare...</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-icon">⏱️</div>
+            <div class="detail-text" id="detailDuration">Calculare...</div>
         </div>
         <div class="detail-row">
             <div class="detail-icon">📍</div>
@@ -112,20 +124,24 @@
     </div>
 </div>
 
-<!-- MODAL RAPORTARE (GENERIC) -->
+<!-- MODAL RAPORTARE -->
 <div id="reportModal" class="glass-modal" style="display:none;">
     <h3 id="reportTitle" style="color:#dc3545;">⚠️ Raporteaza</h3>
     <p id="reportItemName" style="font-weight:bold; margin-bottom:15px; color:#333;"></p>
 
     <label style="display:block; text-align:left; margin-bottom:5px; font-size:14px;">Motivul raportarii:</label>
     <select id="reportReason" class="type-select" style="margin-bottom:20px;">
-        <!-- Optiunile vor fi populate din JS -->
     </select>
 
     <div class="form-buttons">
         <button id="confirmReportBtn" class="form-btn" style="background-color:#dc3545; color:white;">Sterge</button>
         <button id="cancelReportBtn" class="form-btn" style="background-color:#6c757d; color:white;">Anuleaza</button>
     </div>
+</div>
+
+<!-- NOTIFICARE REROUTING -->
+<div id="rerouteNotification" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#dc3545; color:white; padding:15px; border-radius:30px; box-shadow:0 5px 15px rgba(0,0,0,0.3); z-index:4000; font-weight:bold; align-items:center; gap:10px;">
+    <span>⚠️ Ruta initiala blocata! Redirectionare...</span>
 </div>
 
 <!-- Login -->

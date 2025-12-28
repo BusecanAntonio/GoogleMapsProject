@@ -17,6 +17,9 @@ var userLocation = null;
 var userLocationMarker = null; 
 var isRoutingEnabled = false; 
 
+var problematicRoads = []; 
+var isIllegalSpeed = false; // Modul de viteza GLOBAL
+
 // --- MOTIVE RAPORTARE ---
 const REPORT_REASONS = {
     'road': ["Alerta Falsa", "Drum Deschis", "Informatie Gresita", "Duplicat", "Nu mai este valabil", "Traseu Gresit", "Nume Ofensator", "Altul"],
@@ -75,17 +78,16 @@ function createRoad(coordinates, name, id, type) {
     let weight = 4;
     let dashArray = null;
 
-    if (type === 'blocked') {
-        color = 'black';
-        weight = 5;
-    } else if (type === 'work') {
-        color = 'orange';
-        weight = 5;
-        dashArray = '10, 10'; // Linie punctata
-    }
+    if (type === 'blocked') { color = 'black'; weight = 5; }
+    else if (type === 'work') { color = 'orange'; weight = 5; dashArray = '10, 10'; }
+    else if (type === 'accident') { color = 'purple'; weight = 5; }
 
     var polyline = L.polyline(coordinates, {color: color, weight: weight, dashArray: dashArray}).addTo(allRoads);
     
+    if (['blocked', 'work', 'accident'].includes(type)) {
+        problematicRoads.push({ id: id, type: type, name: name, polyline: polyline, coordinates: coordinates });
+    }
+
     polyline.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
         showDetailsPanel(id, name, coordinates, polyline, type);
@@ -142,11 +144,109 @@ loadSavedLocations();
 loadSavedRoads();
 
 
+// --- LOGICA VERIFICARE RUTA SI TIMP ---
+
+function isPointNearSegment(p, a, b, tolerance) {
+    const L2 = (b.lat - a.lat)**2 + (b.lng - a.lng)**2;
+    if (L2 === 0) return ((p.lat - a.lat)**2 + (p.lng - a.lng)**2) < tolerance**2;
+    let t = ((p.lat - a.lat) * (b.lat - a.lat) + (p.lng - a.lng) * (b.lng - a.lng)) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const projLat = a.lat + t * (b.lat - a.lat);
+    const projLng = a.lng + t * (b.lng - a.lng);
+    return ((p.lat - projLat)**2 + (p.lng - projLng)**2) < tolerance**2;
+}
+
+function getRouteProblems(routeCoordinates) {
+    let problems = [];
+    for (const road of problematicRoads) {
+        const roadBounds = road.polyline.getBounds();
+        const routeBounds = L.latLngBounds(routeCoordinates);
+        
+        if (!roadBounds.intersects(routeBounds)) continue;
+
+        for (let i = 0; i < routeCoordinates.length; i += 5) {
+            const p = routeCoordinates[i];
+            for (let j = 0; j < road.coordinates.length - 1; j++) {
+                const a = {lat: road.coordinates[j][0], lng: road.coordinates[j][1]};
+                const b = {lat: road.coordinates[j+1][0], lng: road.coordinates[j+1][1]};
+                if (isPointNearSegment(p, a, b, 0.0003)) {
+                    problems.push(road);
+                    break; 
+                }
+            }
+            if (problems.includes(road)) break;
+        }
+    }
+    return problems;
+}
+
+function calculateAdjustedTime(osrmTimeSeconds, distanceMeters, problems) {
+    let time = osrmTimeSeconds;
+
+    if (isIllegalSpeed) {
+        let avgSpeed = distanceMeters / osrmTimeSeconds;
+        let newSpeed = avgSpeed + 8.33; // +30 km/h
+        time = distanceMeters / newSpeed;
+    }
+
+    let penaltySeconds = 0;
+    let isBlocked = false;
+
+    problems.forEach(p => {
+        if (p.type === 'blocked') isBlocked = true;
+        if (p.type === 'work') penaltySeconds += 1800; 
+        if (p.type === 'accident') penaltySeconds += 3600; 
+    });
+
+    if (isBlocked) return Infinity;
+    return time + penaltySeconds;
+}
+
+function formatTime(seconds) {
+    if (seconds === Infinity) return "BLOCAT";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}min`;
+    return `${m}min`;
+}
+
+
+// --- SELECTOR VITEZA GLOBAL ---
+const globalSpeedLegal = document.getElementById('globalSpeedLegal');
+const globalSpeedIllegal = document.getElementById('globalSpeedIllegal');
+
+function updateSpeedMode(illegal) {
+    isIllegalSpeed = illegal;
+    if (isIllegalSpeed) {
+        globalSpeedIllegal.classList.add('active-illegal');
+        globalSpeedLegal.classList.remove('active-legal');
+    } else {
+        globalSpeedLegal.classList.add('active-legal');
+        globalSpeedIllegal.classList.remove('active-illegal');
+    }
+    
+    // Daca avem o ruta activa, o recalculam (trigger search)
+    // Pentru simplitate, daca avem text in searchBox, simulam Enter
+    if (routingControl && searchBox.value) {
+        // searchBox.dispatchEvent(new KeyboardEvent('keypress', {'key': 'Enter'}));
+        // Sau mai bine, doar actualizam notificarea daca e cazul, dar OSRM nu se schimba
+        // Trebuie sa re-evaluam rutele gasite deja.
+        // Deoarece nu pastram rutele vechi in memorie usor, cel mai simplu e sa re-declansam cautarea
+        // Dar asta face trafic de retea.
+        // Lasam utilizatorul sa dea Enter din nou daca vrea update.
+    }
+}
+
+globalSpeedLegal.addEventListener('click', () => updateSpeedMode(false));
+globalSpeedIllegal.addEventListener('click', () => updateSpeedMode(true));
+
+
 // --- PANOU DETALII ---
 const detailsPanel = document.getElementById('detailsPanel');
 const detailTitle = document.getElementById('detailTitle');
 const detailType = document.getElementById('detailType');
 const detailDistance = document.getElementById('detailDistance');
+const detailDuration = document.getElementById('detailDuration');
 const detailStart = document.getElementById('detailStart');
 const detailEnd = document.getElementById('detailEnd');
 const closeDetailsBtn = document.getElementById('closeDetailsBtn');
@@ -167,6 +267,7 @@ function showDetailsPanel(id, name, coordinates, polyline, type) {
     let typeText = "Standard";
     if (type === 'blocked') typeText = "⛔ Blocat";
     if (type === 'work') typeText = "🚧 In Lucru";
+    if (type === 'accident') typeText = "💥 Accident";
     detailType.innerText = "Tip: " + typeText;
 
     detailsPanel.style.display = 'flex';
@@ -176,6 +277,19 @@ function showDetailsPanel(id, name, coordinates, polyline, type) {
         totalDistance += map.distance(coordinates[i], coordinates[i+1]);
     }
     detailDistance.innerText = (totalDistance / 1000).toFixed(1) + " km";
+    
+    // Calculam durata estimata (fara OSRM, doar baza)
+    let baseTime = totalDistance / 13.8; 
+    let problems = [];
+    if (type === 'blocked' || type === 'work' || type === 'accident') {
+        problems.push({type: type});
+    }
+    let adjustedTime = calculateAdjustedTime(baseTime, totalDistance, problems);
+    
+    detailDuration.innerText = formatTime(adjustedTime);
+    if (adjustedTime === Infinity) detailDuration.style.color = "red";
+    else if (problems.length > 0) detailDuration.style.color = "orange";
+    else detailDuration.style.color = "#28a745";
     
     detailStart.innerText = "Start: Se incarca...";
     detailEnd.innerText = "Sfarsit: Se incarca...";
@@ -192,9 +306,7 @@ function showDetailsPanel(id, name, coordinates, polyline, type) {
 function closeDetailsPanel() {
     detailsPanel.style.display = 'none';
     if (currentSelectedPolyline) {
-        // Resetam stilul original (trebuie sa stim tipul, dar simplificam aici)
         currentSelectedPolyline.setStyle({weight: 4, opacity: 1}); 
-        // Ideal ar fi sa salvam stilul original inainte de highlight
     }
     currentSelectedRoadId = null;
     currentSelectedPolyline = null;
@@ -271,7 +383,10 @@ confirmReportBtn.addEventListener('click', () => {
         .then(response => {
             if (response.ok) {
                 if (currentReportLayer) {
-                    if (currentReportCategory === 'road') allRoads.removeLayer(currentReportLayer);
+                    if (currentReportCategory === 'road') {
+                        allRoads.removeLayer(currentReportLayer);
+                        problematicRoads = problematicRoads.filter(r => r.id !== currentReportId);
+                    }
                     else allPoints.removeLayer(currentReportLayer);
                 }
                 hideReportModal();
@@ -308,6 +423,8 @@ toggleRoutingBtn.addEventListener('click', () => {
 });
 
 const searchBox = document.getElementById('searchBox');
+const rerouteNotification = document.getElementById('rerouteNotification');
+
 searchBox.addEventListener('keypress', function(e) {
     if(e.key === 'Enter') {
         const query = searchBox.value;
@@ -320,12 +437,51 @@ searchBox.addEventListener('keypress', function(e) {
                     if (routingControl) { map.removeControl(routingControl); routingControl = null; }
                     if (isRoutingEnabled) {
                         if (!userLocation) { alert("Asteapta putin, inca te localizam..."); return; }
+                        
                         routingControl = L.Routing.control({
                             waypoints: [userLocation, destLatLng],
                             router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
                             routeWhileDragging: false, addWaypoints: false, fitSelectedRoutes: true, showAlternatives: true,
                             lineOptions: { styles: [{color: 'blue', opacity: 0.6, weight: 6}] }
                         }).addTo(map);
+
+                        // --- LOGICA REROUTING AVANSATA (TIMP + VITEZA) ---
+                        routingControl.on('routesfound', function(e) {
+                            const routes = e.routes;
+                            
+                            let bestRoute = null;
+                            let minTime = Infinity;
+                            let bestRouteIndex = -1;
+
+                            routes.forEach((route, index) => {
+                                const problems = getRouteProblems(route.coordinates);
+                                const adjustedTime = calculateAdjustedTime(route.summary.totalTime, route.summary.totalDistance, problems);
+                                
+                                console.log(`Ruta ${index}: Timp OSRM=${route.summary.totalTime}s, Probleme=${problems.length}, Timp Ajustat=${adjustedTime}s`);
+
+                                if (adjustedTime < minTime) {
+                                    minTime = adjustedTime;
+                                    bestRoute = route;
+                                    bestRouteIndex = index;
+                                }
+                            });
+
+                            if (bestRouteIndex > 0) {
+                                const problemsOnMain = getRouteProblems(routes[0].coordinates);
+                                let reason = "trafic/blocaje";
+                                if (problemsOnMain.length > 0) reason = problemsOnMain[0].name + " (" + problemsOnMain[0].type + ")";
+                                
+                                rerouteNotification.style.display = 'flex';
+                                rerouteNotification.innerHTML = `<span>⚠️ Ruta principala afectata de ${reason}. Am ales o alternativa mai rapida (${formatTime(minTime)})!</span>`;
+                                setTimeout(() => rerouteNotification.style.display = 'none', 5000);
+                            } else if (minTime === Infinity) {
+                                rerouteNotification.style.display = 'flex';
+                                rerouteNotification.innerHTML = `<span>⛔ Toate rutele sunt blocate!</span>`;
+                            } else {
+                                rerouteNotification.style.display = 'none';
+                            }
+                        });
+
                     } else {
                         map.setView(destLatLng, 14);
                         L.marker(destLatLng).addTo(map).bindPopup(query).openPopup();

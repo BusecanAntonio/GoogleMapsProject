@@ -52,6 +52,41 @@ html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma,
     display: block;
 }
 
+/* --- SELECTOR VITEZA GLOBAL --- */
+#globalSpeedSelector {
+    position: absolute;
+    top: 70px; /* Sub searchBox */
+    left: 90px;
+    z-index: 1000;
+    width: 300px; /* Aceeasi latime ca searchBox */
+    display: flex;
+    background: white;
+    border-radius: 20px;
+    padding: 3px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.speed-option {
+    flex: 1;
+    text-align: center;
+    padding: 6px;
+    border-radius: 17px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: 0.3s;
+    color: #555;
+}
+.speed-option.active-legal {
+    background: #28a745;
+    color: white;
+}
+.speed-option.active-illegal {
+    background: #dc3545;
+    color: white;
+}
+
+
 .leaflet-routing-container { display: none !important; }
 
 /* --- PANOU CREATOR --- */
@@ -196,13 +231,13 @@ html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma,
 #detailsPanel {
     position: absolute;
     top: 20px;
-    left: 90px; /* Aceeasi pozitie ca si creatorPanel */
-    z-index: 1001; /* Peste creatorPanel */
+    left: 90px;
+    z-index: 1001;
     width: 350px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    padding: 0; /* Fara padding general, folosim sectiuni */
+    padding: 0;
     display: none;
     flex-direction: column;
     overflow: hidden;
@@ -247,6 +282,13 @@ html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma,
 }
 .detail-text {
     font-size: 14px;
+}
+
+/* Stil special pentru durata */
+#detailDuration {
+    font-weight: bold;
+    color: #28a745;
+    font-size: 16px;
 }
 
 .details-actions {
