@@ -52,42 +52,45 @@ html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma,
     display: block;
 }
 
-/* --- SELECTOR VITEZA GLOBAL --- */
-#globalSpeedSelector {
+/* --- SUMAR RUTA CUSTOM (NOU) --- */
+#customRouteSummary {
     position: absolute;
-    top: 70px; /* Sub searchBox */
-    left: 90px;
-    z-index: 1000;
-    width: 300px; /* Aceeasi latime ca searchBox */
-    display: flex;
+    top: 10px;
+    right: 10px;
+    z-index: 1002; /* Peste LRM */
+    width: 300px;
     background: white;
-    border-radius: 20px;
-    padding: 3px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    display: none; /* Ascuns initial */
+    font-family: sans-serif;
 }
-
-.speed-option {
-    flex: 1;
-    text-align: center;
-    padding: 6px;
-    border-radius: 17px;
-    cursor: pointer;
-    font-size: 12px;
+#customRouteSummary h2 {
+    margin: 0 0 5px 0;
+    font-size: 24px;
+    color: #333;
+}
+#customRouteSummary p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+}
+#customRouteSummary .warning {
+    color: #dc3545;
     font-weight: bold;
-    transition: 0.3s;
-    color: #555;
-}
-.speed-option.active-legal {
-    background: #28a745;
-    color: white;
-}
-.speed-option.active-illegal {
-    background: #dc3545;
-    color: white;
+    margin-top: 5px;
+    display: block;
 }
 
+/* Ascundem header-ul default din LRM pentru a nu avea duplicate, dar pastram pasii */
+.leaflet-routing-alt h2, .leaflet-routing-alt h3 {
+    display: none !important;
+}
+.leaflet-routing-container {
+    margin-top: 100px !important; /* Facem loc pentru sumarul nostru */
+}
 
-.leaflet-routing-container { display: none !important; }
 
 /* --- PANOU CREATOR --- */
 #creatorPanel {
@@ -290,6 +293,36 @@ html, body { height: 100%; margin:0; padding:0; font-family: 'Segoe UI', Tahoma,
     color: #28a745;
     font-size: 16px;
 }
+
+/* Stil pentru Selectorul de Viteza (Doar in panou) */
+.speed-selector {
+    display: flex;
+    background: #f1f1f1;
+    border-radius: 20px;
+    padding: 3px;
+    margin-bottom: 15px;
+}
+.speed-option {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    border-radius: 17px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+.speed-option.active-legal {
+    background: #28a745;
+    color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.speed-option.active-illegal {
+    background: #dc3545; /* Rosu */
+    color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
 
 .details-actions {
     display: flex;

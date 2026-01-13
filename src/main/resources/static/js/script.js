@@ -10,6 +10,8 @@ var allRoads = L.layerGroup().addTo(map);
 // --- Variabile Globale ---
 var creatorMode = false; 
 var pickingLocationMode = false; 
+var pickingRoadPointMode = false;
+var currentRoadInput = null;
 var tempLocationMarker = null;
 
 var routingControl = null;
@@ -18,7 +20,11 @@ var userLocationMarker = null;
 var isRoutingEnabled = false; 
 
 var problematicRoads = []; 
-var isIllegalSpeed = false; // Modul de viteza GLOBAL
+// isIllegalSpeed nu mai este globala pentru rutare, ci doar pentru panoul de detalii
+
+// Variabile pentru ruta activa
+var currentActiveRoute = null;
+var currentActiveRouteProblems = [];
 
 // --- MOTIVE RAPORTARE ---
 const REPORT_REASONS = {
@@ -130,7 +136,7 @@ function loadPoints(query) {
             resolve();
         })
         .catch(err => {
-            console.warn("Nu s-au putut incarca punctele OSM:", err);
+            console.warn("Nu s-au putut incarca punctele OSM (server ocupat):", err);
             resolve(); 
         });
     });
@@ -170,20 +176,22 @@ function getRouteProblems(routeCoordinates) {
                 const a = {lat: road.coordinates[j][0], lng: road.coordinates[j][1]};
                 const b = {lat: road.coordinates[j+1][0], lng: road.coordinates[j+1][1]};
                 if (isPointNearSegment(p, a, b, 0.0003)) {
-                    problems.push(road);
+                    if (!problems.find(pr => pr.id === road.id)) {
+                        problems.push(road);
+                    }
                     break; 
                 }
             }
-            if (problems.includes(road)) break;
         }
     }
     return problems;
 }
 
-function calculateAdjustedTime(osrmTimeSeconds, distanceMeters, problems) {
+// Functie pentru calcul timp (fara viteza ilegala globala)
+function calculateAdjustedTime(osrmTimeSeconds, distanceMeters, problems, useIllegalSpeed = false) {
     let time = osrmTimeSeconds;
 
-    if (isIllegalSpeed) {
+    if (useIllegalSpeed) {
         let avgSpeed = distanceMeters / osrmTimeSeconds;
         let newSpeed = avgSpeed + 8.33; // +30 km/h
         time = distanceMeters / newSpeed;
@@ -192,11 +200,13 @@ function calculateAdjustedTime(osrmTimeSeconds, distanceMeters, problems) {
     let penaltySeconds = 0;
     let isBlocked = false;
 
-    problems.forEach(p => {
-        if (p.type === 'blocked') isBlocked = true;
-        if (p.type === 'work') penaltySeconds += 1800; 
-        if (p.type === 'accident') penaltySeconds += 3600; 
-    });
+    if (problems) {
+        problems.forEach(p => {
+            if (p.type === 'blocked') isBlocked = true;
+            if (p.type === 'work') penaltySeconds += 1800; 
+            if (p.type === 'accident') penaltySeconds += 3600; 
+        });
+    }
 
     if (isBlocked) return Infinity;
     return time + penaltySeconds;
@@ -211,36 +221,6 @@ function formatTime(seconds) {
 }
 
 
-// --- SELECTOR VITEZA GLOBAL ---
-const globalSpeedLegal = document.getElementById('globalSpeedLegal');
-const globalSpeedIllegal = document.getElementById('globalSpeedIllegal');
-
-function updateSpeedMode(illegal) {
-    isIllegalSpeed = illegal;
-    if (isIllegalSpeed) {
-        globalSpeedIllegal.classList.add('active-illegal');
-        globalSpeedLegal.classList.remove('active-legal');
-    } else {
-        globalSpeedLegal.classList.add('active-legal');
-        globalSpeedIllegal.classList.remove('active-illegal');
-    }
-    
-    // Daca avem o ruta activa, o recalculam (trigger search)
-    // Pentru simplitate, daca avem text in searchBox, simulam Enter
-    if (routingControl && searchBox.value) {
-        // searchBox.dispatchEvent(new KeyboardEvent('keypress', {'key': 'Enter'}));
-        // Sau mai bine, doar actualizam notificarea daca e cazul, dar OSRM nu se schimba
-        // Trebuie sa re-evaluam rutele gasite deja.
-        // Deoarece nu pastram rutele vechi in memorie usor, cel mai simplu e sa re-declansam cautarea
-        // Dar asta face trafic de retea.
-        // Lasam utilizatorul sa dea Enter din nou daca vrea update.
-    }
-}
-
-globalSpeedLegal.addEventListener('click', () => updateSpeedMode(false));
-globalSpeedIllegal.addEventListener('click', () => updateSpeedMode(true));
-
-
 // --- PANOU DETALII ---
 const detailsPanel = document.getElementById('detailsPanel');
 const detailTitle = document.getElementById('detailTitle');
@@ -253,14 +233,62 @@ const closeDetailsBtn = document.getElementById('closeDetailsBtn');
 const navigateBtn = document.getElementById('navigateBtn');
 const reportBtn = document.getElementById('reportBtn');
 
+const speedLegal = document.getElementById('speedLegal');
+const speedIllegal = document.getElementById('speedIllegal');
+
 let currentSelectedRoadId = null;
 let currentSelectedPolyline = null;
+let currentSelectedCoordinates = null;
+let currentSelectedType = null;
+let isPanelIllegalSpeed = false; // Variabila locala pentru panou
+
+function updateDurationDisplay() {
+    if (!currentSelectedCoordinates) return;
+    
+    let totalDistance = 0;
+    for(let i = 0; i < currentSelectedCoordinates.length - 1; i++) {
+        totalDistance += map.distance(currentSelectedCoordinates[i], currentSelectedCoordinates[i+1]);
+    }
+    
+    let baseTime = totalDistance / 13.8; 
+    let problems = [];
+    if (currentSelectedType === 'blocked' || currentSelectedType === 'work' || currentSelectedType === 'accident') {
+        problems.push({type: currentSelectedType});
+    }
+    
+    // Folosim variabila locala isPanelIllegalSpeed
+    let adjustedTime = calculateAdjustedTime(baseTime, totalDistance, problems, isPanelIllegalSpeed);
+    
+    if (detailDuration) {
+        detailDuration.innerText = formatTime(adjustedTime);
+        if (adjustedTime === Infinity) detailDuration.style.color = "red";
+        else if (problems.length > 0) detailDuration.style.color = "orange";
+        else detailDuration.style.color = "#28a745";
+    }
+}
+
+speedLegal.addEventListener('click', () => {
+    isPanelIllegalSpeed = false;
+    speedLegal.classList.add('active-legal');
+    speedIllegal.classList.remove('active-illegal');
+    updateDurationDisplay();
+});
+
+speedIllegal.addEventListener('click', () => {
+    isPanelIllegalSpeed = true;
+    speedIllegal.classList.add('active-illegal');
+    speedLegal.classList.remove('active-legal');
+    updateDurationDisplay();
+});
+
 
 function showDetailsPanel(id, name, coordinates, polyline, type) {
     if (creatorMode) document.getElementById('addLocationBtn').click();
     
     currentSelectedRoadId = id;
     currentSelectedPolyline = polyline;
+    currentSelectedCoordinates = coordinates;
+    currentSelectedType = type;
     
     detailTitle.innerText = name;
     
@@ -272,24 +300,18 @@ function showDetailsPanel(id, name, coordinates, polyline, type) {
 
     detailsPanel.style.display = 'flex';
     
+    // Resetam la Legal cand deschidem panoul
+    isPanelIllegalSpeed = false;
+    speedLegal.classList.add('active-legal');
+    speedIllegal.classList.remove('active-illegal');
+
     let totalDistance = 0;
     for(let i = 0; i < coordinates.length - 1; i++) {
         totalDistance += map.distance(coordinates[i], coordinates[i+1]);
     }
     detailDistance.innerText = (totalDistance / 1000).toFixed(1) + " km";
     
-    // Calculam durata estimata (fara OSRM, doar baza)
-    let baseTime = totalDistance / 13.8; 
-    let problems = [];
-    if (type === 'blocked' || type === 'work' || type === 'accident') {
-        problems.push({type: type});
-    }
-    let adjustedTime = calculateAdjustedTime(baseTime, totalDistance, problems);
-    
-    detailDuration.innerText = formatTime(adjustedTime);
-    if (adjustedTime === Infinity) detailDuration.style.color = "red";
-    else if (problems.length > 0) detailDuration.style.color = "orange";
-    else detailDuration.style.color = "#28a745";
+    updateDurationDisplay();
     
     detailStart.innerText = "Start: Se incarca...";
     detailEnd.innerText = "Sfarsit: Se incarca...";
@@ -418,12 +440,21 @@ toggleRoutingBtn.addEventListener('click', () => {
         toggleRoutingBtn.classList.remove('active');
         map.stopLocate();
         if (userLocationMarker && map.hasLayer(userLocationMarker)) map.removeLayer(userLocationMarker);
-        if (routingControl) { map.removeControl(routingControl); routingControl = null; }
+        if (routingControl) { 
+            map.removeControl(routingControl); 
+            routingControl = null; 
+            document.getElementById('customRouteSummary').style.display = 'none';
+            currentActiveRoute = null;
+        }
     }
 });
 
 const searchBox = document.getElementById('searchBox');
 const rerouteNotification = document.getElementById('rerouteNotification');
+const customRouteSummary = document.getElementById('customRouteSummary');
+const summaryTime = document.getElementById('summaryTime');
+const summaryDistance = document.getElementById('summaryDistance');
+const summaryWarning = document.getElementById('summaryWarning');
 
 searchBox.addEventListener('keypress', function(e) {
     if(e.key === 'Enter') {
@@ -434,7 +465,12 @@ searchBox.addEventListener('keypress', function(e) {
             .then(data => {
                 if(data && data.length > 0) {
                     const destLatLng = L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon));
-                    if (routingControl) { map.removeControl(routingControl); routingControl = null; }
+                    if (routingControl) { 
+                        map.removeControl(routingControl); 
+                        routingControl = null; 
+                        customRouteSummary.style.display = 'none';
+                        currentActiveRoute = null;
+                    }
                     if (isRoutingEnabled) {
                         if (!userLocation) { alert("Asteapta putin, inca te localizam..."); return; }
                         
@@ -452,10 +488,12 @@ searchBox.addEventListener('keypress', function(e) {
                             let bestRoute = null;
                             let minTime = Infinity;
                             let bestRouteIndex = -1;
+                            let bestRouteProblems = [];
 
                             routes.forEach((route, index) => {
                                 const problems = getRouteProblems(route.coordinates);
-                                const adjustedTime = calculateAdjustedTime(route.summary.totalTime, route.summary.totalDistance, problems);
+                                // Aici folosim doar penalizarile, fara viteza ilegala globala
+                                const adjustedTime = calculateAdjustedTime(route.summary.totalTime, route.summary.totalDistance, problems, false);
                                 
                                 console.log(`Ruta ${index}: Timp OSRM=${route.summary.totalTime}s, Probleme=${problems.length}, Timp Ajustat=${adjustedTime}s`);
 
@@ -463,8 +501,32 @@ searchBox.addEventListener('keypress', function(e) {
                                     minTime = adjustedTime;
                                     bestRoute = route;
                                     bestRouteIndex = index;
+                                    bestRouteProblems = problems;
                                 }
                             });
+
+                            currentActiveRoute = bestRoute;
+                            currentActiveRouteProblems = bestRouteProblems;
+
+                            // --- ACTUALIZARE SUMAR CUSTOM ---
+                            if (customRouteSummary) {
+                                customRouteSummary.style.display = 'block';
+                                summaryTime.innerText = formatTime(minTime);
+                                summaryDistance.innerText = (bestRoute.summary.totalDistance / 1000).toFixed(1) + " km";
+                                
+                                if (minTime === Infinity) {
+                                    summaryTime.style.color = "red";
+                                    summaryWarning.innerText = "⛔ Ruta Blocata!";
+                                } else {
+                                    summaryTime.style.color = "#28a745";
+                                    summaryWarning.innerText = "";
+                                    
+                                    if (bestRouteProblems.length > 0) {
+                                        summaryTime.style.color = "orange";
+                                        summaryWarning.innerText = "⚠️ Intarzieri: " + bestRouteProblems[0].type;
+                                    }
+                                }
+                            }
 
                             if (bestRouteIndex > 0) {
                                 const problemsOnMain = getRouteProblems(routes[0].coordinates);
@@ -474,6 +536,8 @@ searchBox.addEventListener('keypress', function(e) {
                                 rerouteNotification.style.display = 'flex';
                                 rerouteNotification.innerHTML = `<span>⚠️ Ruta principala afectata de ${reason}. Am ales o alternativa mai rapida (${formatTime(minTime)})!</span>`;
                                 setTimeout(() => rerouteNotification.style.display = 'none', 5000);
+                                
+                                routingControl.selectAlternative(bestRouteIndex);
                             } else if (minTime === Infinity) {
                                 rerouteNotification.style.display = 'flex';
                                 rerouteNotification.innerHTML = `<span>⛔ Toate rutele sunt blocate!</span>`;
@@ -515,6 +579,7 @@ const roadNameInput = document.getElementById('roadNameInput');
 const roadZoneInput = document.getElementById('roadZoneInput');
 const roadGoToZoneBtn = document.getElementById('roadGoToZoneBtn');
 const roadTypeSelect = document.getElementById('roadTypeSelect');
+const roadStatus = document.getElementById('roadStatus');
 
 addLocationBtn.addEventListener('click', () => {
     if (isRoutingEnabled) document.getElementById('toggleRoutingBtn').click();
@@ -534,6 +599,7 @@ addLocationBtn.addEventListener('click', () => {
         addLocationBtn.classList.remove('active');
         creatorPanel.style.display = 'none';
         pickingLocationMode = false;
+        pickingRoadPointMode = false;
         map.getContainer().style.cursor = '';
         locStatus.style.display = 'none';
         if (tempLocationMarker) map.removeLayer(tempLocationMarker);
@@ -582,6 +648,7 @@ pickOnMapBtn.addEventListener('click', () => {
 });
 
 map.on('click', function(e) {
+    // 1. Locatie
     if (creatorMode && pickingLocationMode) {
         latInput.value = e.latlng.lat.toFixed(6);
         lngInput.value = e.latlng.lng.toFixed(6);
@@ -596,6 +663,21 @@ map.on('click', function(e) {
             });
         }
         pickOnMapBtn.click();
+    }
+
+    // 2. Drum (Puncte)
+    if (creatorMode && pickingRoadPointMode && currentRoadInput) {
+        reverseGeocode(e.latlng).then(addr => {
+            currentRoadInput.value = addr;
+            currentRoadInput.dataset.lat = e.latlng.lat;
+            currentRoadInput.dataset.lng = e.latlng.lng;
+            
+            pickingRoadPointMode = false;
+            map.getContainer().style.cursor = '';
+            document.getElementById('roadStatus').style.display = 'none';
+            const btn = currentRoadInput.nextElementSibling;
+            if(btn) btn.classList.remove('active');
+        });
     }
 });
 
@@ -635,23 +717,47 @@ saveLocationBtn.addEventListener('click', () => {
 function createStopInput(placeholder) {
     const div = document.createElement('div');
     div.className = 'builder-input-group';
+    
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'builder-input';
     input.placeholder = placeholder || "Punct intermediar...";
+    
+    const pickBtn = document.createElement('button');
+    pickBtn.innerText = "📍";
+    pickBtn.className = 'panel-btn';
+    pickBtn.style.cssText = "width:40px; margin-top:0; margin-left:5px; padding:5px;";
+    pickBtn.title = "Alege pe Harta";
+    
+    pickBtn.onclick = function() {
+        pickingRoadPointMode = true;
+        currentRoadInput = input;
+        map.getContainer().style.cursor = 'crosshair';
+        document.getElementById('roadStatus').style.display = 'block';
+        pickBtn.classList.add('active');
+    };
+
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-stop-btn';
     removeBtn.innerText = 'x';
+    removeBtn.style.marginLeft = "5px";
     removeBtn.onclick = function() { stopsContainer.removeChild(div); };
+    
     div.appendChild(input);
+    div.appendChild(pickBtn);
     div.appendChild(removeBtn);
     stopsContainer.appendChild(div);
 }
 
 addStopBtn.addEventListener('click', () => createStopInput());
 
-function geocodeText(text) {
+function geocodeText(text, inputElement) {
     return new Promise((resolve, reject) => {
+        if (inputElement && inputElement.dataset.lat && inputElement.dataset.lng) {
+            resolve(L.latLng(parseFloat(inputElement.dataset.lat), parseFloat(inputElement.dataset.lng)));
+            return;
+        }
+
         if (!text || text.trim() === "") { reject("Camp gol"); return; }
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&countrycodes=ro&limit=1`;
         fetch(url)
@@ -684,7 +790,7 @@ saveBuiltRoadBtn.addEventListener('click', async () => {
     try {
         const coords = [];
         for (const inp of validInputs) {
-            coords.push(await geocodeText(inp.value));
+            coords.push(await geocodeText(inp.value, inp));
             await delay(1000); 
         }
         

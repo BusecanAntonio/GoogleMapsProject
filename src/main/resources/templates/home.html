@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Romania Map with Search</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="/css/style.css" />
 </head>
@@ -77,13 +77,16 @@
             <option value="accident">💥 Accident</option>
         </select>
 
-        <div id="stopsContainer"></div>
+        <div id="stopsContainer">
+            <!-- Input-uri generate dinamic -->
+        </div>
         <button id="addStopBtn" class="panel-btn">+ Adauga Punct</button>
 
         <hr style="margin:10px 0; border:0; border-top:1px solid #ddd;">
 
         <input type="text" id="roadNameInput" class="builder-input" placeholder="Nume Drum...">
         <button id="saveBuiltRoadBtn" class="panel-btn">Calculeaza si Salveaza</button>
+        <p id="roadStatus" style="font-size:12px; color:#666; margin:5px 0; display:none;">Alege punctul pe harta...</p>
     </div>
 </div>
 
@@ -98,6 +101,12 @@
         <div class="detail-row">
             <div class="detail-icon">ℹ️</div>
             <div class="detail-text" id="detailType">Tip: Standard</div>
+        </div>
+
+        <!-- SELECTOR VITEZA (DOAR AICI) -->
+        <div class="speed-selector">
+            <div class="speed-option active-legal" id="speedLegal">😇 Legal</div>
+            <div class="speed-option" id="speedIllegal">😈 +30 km/h</div>
         </div>
 
         <div class="detail-row">
@@ -158,8 +167,8 @@
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="/js/script.js"></script>
 
