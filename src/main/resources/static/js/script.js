@@ -7,6 +7,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 var allPoints = L.layerGroup().addTo(map);
 var allRoads = L.layerGroup().addTo(map);
 
+// Mapare ID -> Layer pentru stergere usoara
+var locationLayers = {}; // id -> marker
+var roadLayers = {};     // id -> polyline
+
 // --- Variabile Globale ---
 var creatorMode = false; 
 var pickingLocationMode = false; 
@@ -37,6 +41,62 @@ const REPORT_REASONS = {
     'default': ["Nu exista", "Informatie Gresita", "Duplicat", "Altul"]
 };
 
+// --- WEBSOCKET ---
+var stompClient = null;
+
+function connectWebSocket() {
+    var socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null; // Dezactivam logurile din consola daca vrei
+    stompClient.connect({}, function (frame) {
+        console.log('Connected to WebSocket: ' + frame);
+        stompClient.subscribe('/topic/updates', function (message) {
+            handleWebSocketMessage(JSON.parse(message.body));
+        });
+    });
+}
+
+function handleWebSocketMessage(msg) {
+    console.log("WebSocket update:", msg);
+    
+    if (msg.action === 'add') {
+        if (msg.type === 'location') {
+            const loc = msg.data;
+            // Verificam daca nu exista deja (pentru a evita duplicate la cel care a creat)
+            if (!locationLayers[loc.id]) {
+                createMarker(loc.lat, loc.lng, loc.name, loc.type, loc.id);
+            }
+        } else if (msg.type === 'road') {
+            const road = msg.data;
+            if (!roadLayers[road.id]) {
+                try {
+                    var coords = JSON.parse(road.coordinatesJson);
+                    createRoad(coords, road.name, road.id, road.type);
+                } catch (e) { console.error(e); }
+            }
+        }
+    } else if (msg.action === 'delete') {
+        if (msg.type === 'location') {
+            const marker = locationLayers[msg.id];
+            if (marker) {
+                allPoints.removeLayer(marker);
+                delete locationLayers[msg.id];
+            }
+        } else if (msg.type === 'road') {
+            const polyline = roadLayers[msg.id];
+            if (polyline) {
+                allRoads.removeLayer(polyline);
+                delete roadLayers[msg.id];
+                // Scoatem si din problematicRoads
+                problematicRoads = problematicRoads.filter(r => r.id !== msg.id);
+            }
+        }
+    }
+}
+
+connectWebSocket();
+
+
 // --- Functii Utilitare ---
 
 function getIconForType(type) {
@@ -63,6 +123,9 @@ function createMarker(lat, lon, name, type, id) {
     const icon = getIconForType(type);
     const marker = L.marker([lat, lon], { title: name, icon: icon }).addTo(allPoints);
     
+    // Salvam referinta
+    if (id) locationLayers[id] = marker;
+
     const popupContent = document.createElement('div');
     popupContent.innerHTML = `<b>${name}</b><br>Tip: ${type || 'Standard'}<br>`;
     
@@ -90,6 +153,9 @@ function createRoad(coordinates, name, id, type) {
 
     var polyline = L.polyline(coordinates, {color: color, weight: weight, dashArray: dashArray}).addTo(allRoads);
     
+    // Salvam referinta
+    if (id) roadLayers[id] = polyline;
+
     if (['blocked', 'work', 'accident'].includes(type)) {
         problematicRoads.push({ id: id, type: type, name: name, polyline: polyline, coordinates: coordinates });
     }
@@ -404,13 +470,8 @@ confirmReportBtn.addEventListener('click', () => {
         fetch(endpoint + currentReportId, { method: 'DELETE' })
         .then(response => {
             if (response.ok) {
-                if (currentReportLayer) {
-                    if (currentReportCategory === 'road') {
-                        allRoads.removeLayer(currentReportLayer);
-                        problematicRoads = problematicRoads.filter(r => r.id !== currentReportId);
-                    }
-                    else allPoints.removeLayer(currentReportLayer);
-                }
+                // Nu mai stergem manual de pe harta, asteptam notificarea WebSocket
+                // Dar pentru feedback rapid, putem ascunde
                 hideReportModal();
                 closeDetailsPanel();
             } else { alert("Eroare la stergere."); }
@@ -699,17 +760,8 @@ saveLocationBtn.addEventListener('click', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(location)
     })
-    .then(r => r.json())
-    .then(saved => {
-        createMarker(saved.lat, saved.lng, saved.name, saved.type, saved.id);
-        newLocName.value = "";
-        latInput.value = "";
-        lngInput.value = "";
-        if (tempLocationMarker) {
-            map.removeLayer(tempLocationMarker);
-            tempLocationMarker = null;
-        }
-    });
+    // Nu mai facem nimic aici, asteptam WebSocket
+    .catch(err => alert("Eroare salvare: " + err));
 });
 
 
@@ -809,14 +861,15 @@ saveBuiltRoadBtn.addEventListener('click', async () => {
                 coordinatesJson: JSON.stringify(leafletCoords) 
             };
 
-            const saveResponse = await fetch('/roads', {
+            fetch('/roads', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(roadData)
-            });
-            const saved = await saveResponse.json();
-            createRoad(leafletCoords, saved.name, saved.id, saved.type);
+            })
+            // Asteptam WebSocket
+            .catch(err => alert("Eroare salvare: " + err));
             
+            // Resetam UI imediat
             stopsContainer.innerHTML = ""; 
             createStopInput("Start"); createStopInput("End");
             roadNameInput.value = "";

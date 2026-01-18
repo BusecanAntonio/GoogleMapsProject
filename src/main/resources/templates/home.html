@@ -17,10 +17,11 @@
 <!-- Bara Cautare -->
 <input type="text" id="searchBox" placeholder="Cauta locatie...">
 
-<!-- SELECTOR VITEZA GLOBAL -->
-<div id="globalSpeedSelector">
-    <div class="speed-option active-legal" id="globalSpeedLegal">😇 Legal</div>
-    <div class="speed-option" id="globalSpeedIllegal">😈 +30 km/h</div>
+<!-- PANOU SUMAR RUTA CUSTOM -->
+<div id="customRouteSummary">
+    <h2 id="summaryTime"></h2>
+    <p id="summaryDistance"></p>
+    <p id="summaryWarning" class="warning"></p>
 </div>
 
 <!-- PANOU CREATOR -->
@@ -170,6 +171,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<!-- WebSocket Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
 <script src="/js/script.js"></script>
 
 </body>
